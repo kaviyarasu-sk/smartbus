@@ -7,27 +7,19 @@ import { io } from 'socket.io-client';
 import api from '../services/api';
 import { Route as RouteIcon, MapPin, Clock, Bus as BusIcon, Navigation } from 'lucide-react';
 
-// Fix Leaflet marker icons issue in React
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-let DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41]
+// Fix Leaflet marker icons safely without static asset import issues
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
-L.Marker.prototype.options.icon = DefaultIcon;
 
 const busIcon = new L.Icon({
   iconUrl: 'https://cdn-icons-png.flaticon.com/512/3204/3204128.png',
   iconSize: [36, 36],
-  iconAnchor: [18, 36]
-});
-
-const stopIcon = new L.Icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
-  iconSize: [24, 24],
-  iconAnchor: [12, 24]
+  iconAnchor: [18, 36],
+  popupAnchor: [0, -36]
 });
 
 export default function LiveTracking() {
@@ -36,7 +28,6 @@ export default function LiveTracking() {
   const [selectedRouteId, setSelectedRouteId] = useState('ALL');
 
   useEffect(() => {
-    // Fetch routes for selective filtering
     const fetchRoutes = async () => {
       try {
         const { data } = await api.get('/routes');
@@ -51,26 +42,34 @@ export default function LiveTracking() {
     };
     fetchRoutes();
 
-    const socket = io(import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000');
+    let socket;
+    try {
+      socket = io(import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000', {
+        transports: ['websocket', 'polling']
+      });
 
-    socket.on('busLocationUpdate', (data) => {
-      setBuses((prevBuses) => ({
-        ...prevBuses,
-        [data.busId]: data
-      }));
-    });
+      socket.on('busLocationUpdate', (data) => {
+        setBuses((prevBuses) => ({
+          ...prevBuses,
+          [data.busId]: data
+        }));
+      });
+    } catch (e) {
+      console.warn('Socket connection error:', e);
+    }
 
-    return () => socket.disconnect();
+    return () => {
+      if (socket) socket.disconnect();
+    };
   }, []);
 
-  // Predefined route waypoints for selected routes
   const routeWaypoints = {
     '1': [
-      [10.6558, 77.0090], // Pollachi / City Center
-      [10.7500, 77.0200], // Kovilpalayam
-      [10.8200, 77.0300], // Kinathukadavu
-      [10.9500, 77.0500], // Eachanari
-      [11.0168, 76.9558], // Main Campus
+      [10.6558, 77.0090],
+      [10.7500, 77.0200],
+      [10.8200, 77.0300],
+      [10.9500, 77.0500],
+      [11.0168, 76.9558],
     ],
     '2': [
       [11.0020, 76.9600],
@@ -85,13 +84,10 @@ export default function LiveTracking() {
   };
 
   const selectedRouteObj = routes.find(r => r._id === selectedRouteId || r.routeNumber === selectedRouteId);
-
-  // Filter buses matching selected route if needed
   const busList = Object.values(buses);
 
   return (
     <DashboardLayout>
-      {/* Header and Route Selector */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2 text-gray-800">
@@ -100,7 +96,6 @@ export default function LiveTracking() {
           <p className="text-sm text-gray-500 mt-0.5">Real-time GPS bus location and selective route tracker</p>
         </div>
 
-        {/* Selective Route Dropdown Filter */}
         <div className="flex items-center gap-2 bg-white p-2 rounded-xl border shadow-sm w-full md:w-auto">
           <RouteIcon size={18} className="text-indigo-600 ml-1" />
           <span className="text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Selective Route:</span>
@@ -119,9 +114,8 @@ export default function LiveTracking() {
         </div>
       </div>
 
-      {/* Selected Route Info Banner (if a specific route is selected) */}
       {selectedRouteObj && (
-        <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl mb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 animate-fadeIn">
+        <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl mb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
           <div>
             <div className="flex items-center gap-2">
               <span className="bg-indigo-600 text-white text-xs font-bold px-2 py-0.5 rounded">
@@ -156,7 +150,6 @@ export default function LiveTracking() {
         </div>
       )}
 
-      {/* Map Container */}
       <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 h-[600px] w-full relative">
         <MapContainer
           center={[10.8500, 77.0100]}
@@ -169,7 +162,6 @@ export default function LiveTracking() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
-          {/* Polyline for selected route */}
           {selectedRouteObj && routeWaypoints[selectedRouteObj._id || '1'] && (
             <Polyline
               positions={routeWaypoints[selectedRouteObj._id || '1']}
@@ -180,7 +172,6 @@ export default function LiveTracking() {
             />
           )}
 
-          {/* Bus markers */}
           {busList.map(bus => (
             <Marker key={bus.busId} position={[bus.lat, bus.lng]} icon={busIcon}>
               <Popup>

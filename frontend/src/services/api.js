@@ -6,10 +6,16 @@ const api = axios.create({
 
 // Add a request interceptor to automatically add the token
 api.interceptors.request.use((config) => {
-  const userInfo = localStorage.getItem('userInfo');
-  if (userInfo) {
-    const { token } = JSON.parse(userInfo);
-    config.headers.Authorization = `Bearer ${token}`;
+  try {
+    const userInfo = localStorage.getItem('userInfo');
+    if (userInfo && userInfo !== 'undefined') {
+      const parsed = JSON.parse(userInfo);
+      if (parsed?.token) {
+        config.headers.Authorization = `Bearer ${parsed.token}`;
+      }
+    }
+  } catch (err) {
+    console.error('Error attaching auth token:', err);
   }
   return config;
 });
