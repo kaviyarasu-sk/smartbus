@@ -1,0 +1,22 @@
+{
+  "name": "SmartBus - Bus Tracking System",
+  "short_name": "SmartBus",
+  "description": "Real-time bus tracking and smart transportation management",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#4338ca",
+  "theme_color": "#4338ca",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
